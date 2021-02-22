@@ -1,0 +1,51 @@
+version: '2.4'
+
+services:
+  nginx:
+    image: nginx:${NGINX_VERSION}
+    ports:
+      - '${NGINX_HTTP_PORT}:80'
+      - '${NGINX_HTTPS_PORT}:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ${WEBSITE_PROJECT_PATH}:/var/www/website:delegated
+      - ./nginx/nginx-vhost.conf:/etc/nginx/conf.d/default.conf
+      - ./certs/website.crt:/etc/nginx/ssl-crt/website.crt
+      - ./certs/website.key:/etc/nginx/ssl-key/website.key
+  redis:
+    image: redis:latest
+    volumes:
+      - ${REDIS_DATA_PATH}:/data
+    ports:
+      - '${REDIS_PORT}:6379'
+    cap_add:
+      - NET_ADMIN
+  mysql:
+    image: mysql:${MYSQL_VERSION}
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    ports:
+      - '${MYSQL_PORT}:3306'
+    volumes:
+      - ${MYSQL_DATA_PATH}:/var/lib/mysql
+  website:
+    working_dir: /var/www/website
+    build:
+      context: ./php-fpm/context
+      args:
+        - USER_ID=${USER_ID}
+        - GROUP_ID=${GROUP_ID}
+        - PHP_FPM_VERSION=${WEBSITE_PHP_FPM_VERSION}
+        - INSTALL_PHPREDIS=${WEBSITE_INSTALL_PHPREDIS}
+        - INSTALL_GD=${WEBSITE_INSTALL_GD}
+        - INSTALL_PCNTL=${WEBSITE_INSTALL_PCNTL}
+        - INSTALL_NODE=${WEBSITE_INSTALL_NODE}
+    volumes:
+      - ${WEBSITE_PROJECT_PATH}:/var/www/website:delegated
+      - ./php-fpm/resources/www.conf:/usr/local/etc/php-fpm.d/zz-www.conf
+      - ./php-fpm/resources/${WEBSITE_PHP_FPM_VERSION}/php.ini:/usr/local/etc/php/php.ini
+      - ./certs/website.crt:/home/www-data/certs/website.crt
+      - ./certs/website.key:/home/www-data/certs/website.key
+    depends_on:
+      - nginx
+      - redis
